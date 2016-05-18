@@ -10,8 +10,8 @@
 #include "AprilTags/TagDetector.h"
 #include "AprilTags/Tag36h11.h"
 
-#include "april_tag/AprilTag.h" // rosmsg
-#include "april_tag/AprilTagList.h" // rosmsg
+#include "seer/AprilTag.h" // rosmsg
+#include "seer/AprilTagList.h" // rosmsg
 
 
 static const std::string OPENCV_WINDOW = "Image window";
@@ -71,8 +71,8 @@ public:
   {
     // Subscrive to input video feed and publish output video feed
     image_sub_ = it_.subscribe("/usb_cam/image_raw", 1, &AprilTagNode::imageCb, this);
-    image_pub_ = it_.advertise("/april_tag_debug/output_video", 1);
-    tag_list_pub = nh_.advertise<april_tag::AprilTagList>("/april_tags", 100);
+    image_pub_ = it_.advertise("/seer_debug/output_video", 1);
+    tag_list_pub = nh_.advertise<seer::AprilTagList>("/seers", 100);
 
     // Use a private node handle so that multiple instances of the node can
     // be run simultaneously while using different parameters.
@@ -101,7 +101,7 @@ public:
     }
   }
 
-  april_tag::AprilTag convert_to_msg(AprilTags::TagDetection& detection, int width, int height) {
+  seer::AprilTag convert_to_msg(AprilTags::TagDetection& detection, int width, int height) {
     // recovering the relative pose of a tag:
 
     // NOTE: for this to be accurate, it is necessary to use the
@@ -128,7 +128,7 @@ public:
     wRo_to_euler(fixed_rot, yaw, pitch, roll);
 
 
-    april_tag::AprilTag tag_msg;
+    seer::AprilTag tag_msg;
 
     tag_msg.id = detection.id;
     tag_msg.hamming_distance = detection.hammingDistance;
@@ -148,7 +148,7 @@ public:
     cv::Mat image_gray;
     cv::cvtColor(cv_ptr->image, image_gray, CV_BGR2GRAY);
     vector<AprilTags::TagDetection> detections = tag_detector->extractTags(image_gray);
-    vector<april_tag::AprilTag> tag_msgs;
+    vector<seer::AprilTag> tag_msgs;
 
     for (int i=0; i<detections.size(); i++) {
       detections[i].draw(cv_ptr->image);
@@ -156,7 +156,7 @@ public:
     }
 
     if(detections.size() > 0) { // take this out if you want absence notificaiton
-      april_tag::AprilTagList tag_list;
+      seer::AprilTagList tag_list;
       tag_list.april_tags = tag_msgs;
       tag_list_pub.publish(tag_list);
     }
@@ -191,7 +191,7 @@ public:
 
 int main(int argc, char** argv)
 {
-  ros::init(argc, argv, "april_tag_node");
+  ros::init(argc, argv, "seer_node");
   AprilTagNode atn;
   ros::spin();
   return 0;
