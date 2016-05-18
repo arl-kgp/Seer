@@ -3,7 +3,7 @@
 
 	<node pkg="usb_cam" name="usb_cam" type="usb_cam_node"/>
 
-	<node pkg="april_tag" name="april_tag_node" type="april_tag_node">
+	<node pkg="seer" name="april_tag_node" type="april_tag_node">
 <!--		<remap from="/camera/image_raw" to="/usb_cam/image_raw"/> -->
 
 		<!-- focal_length_px: camera focal length in pixels. 
