@@ -1,17 +1,25 @@
 <launch>
-	<param name="/usb_cam/pixel_format" value="yuyv"/>
-
-	<node pkg="usb_cam" name="usb_cam" type="usb_cam_node"/>
+	<node name="usb_cam" pkg="usb_cam" type="usb_cam_node" output="screen" >
+	    <param name="video_device" value="/dev/video1" />
+	    <param name="image_width" value="640" />
+	    <param name="image_height" value="480" />
+	    <param name="pixel_format" value="mjpeg" />
+	    <param name="framerate" value="60" />
+	    <!--<param name="autofocus" value="false" />-->
+	    <param name="camera_frame_id" value="usb_cam" />
+	    <param name="io_method" value="mmap"/>
+	</node>
 
 	<node pkg="seer" name="april_tag_node" type="april_tag_node">
 <!--		<remap from="/camera/image_raw" to="/usb_cam/image_raw"/> -->
 
-		<!-- focal_length_px: camera focal length in pixels. 
+		<!-- focal_length_px: camera focal length in pixels.
 		700 works well forlate 2013 macbook pro retina 13in -->
 		<param name="focal_length_px" value="414"/>
-		
+
 		<!-- tag_size_cm: size of edge of the black frame in cms -->
-		<param name="tag_size_cm" value="15.0"/> 
+		<param name="tag_size_cm" value="15.0"/>
+		<param name="show_debug_image" value="true"/>
 	</node>
 
 </launch>

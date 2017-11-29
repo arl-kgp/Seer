@@ -8,6 +8,7 @@ project(seer)
 find_package(catkin REQUIRED COMPONENTS
   roscpp
   sensor_msgs
+  nav_msgs
   cv_bridge
   image_transport
   message_generation

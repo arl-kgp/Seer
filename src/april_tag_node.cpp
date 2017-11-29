@@ -4,6 +4,7 @@
 #include <ros/ros.h>
 #include <image_transport/image_transport.h>
 #include <cv_bridge/cv_bridge.h>
+#include <nav_msgs/Odometry.h>
 #include <sensor_msgs/image_encodings.h>
 #include <opencv2/imgproc/imgproc.hpp>
 #include <opencv2/highgui/highgui.hpp>
@@ -49,34 +50,36 @@ class AprilTagNode
   image_transport::ImageTransport it_;
   image_transport::Subscriber image_sub_;
   image_transport::Publisher image_pub_;
-  ros::Publisher tag_list_pub;
+  ros::Publisher odom_pub_;
+  //ros::Publisher tag_list_pub;
   AprilTags::TagDetector* tag_detector;
 
-  // allow configurations for these:  
+  // allow configurations for these:
   AprilTags::TagCodes tag_codes;
   double camera_focal_length_x; // in pixels. late 2013 macbookpro retina = 700
   double camera_focal_length_y; // in pixels
-  double tag_size; // tag side length of frame in meters 
+  double tag_size; // tag side length of frame in meters
   bool  show_debug_image;
 
 public:
-  AprilTagNode() : 
-    it_(nh_), 
-    tag_codes(AprilTags::tagCodes36h11), 
+  AprilTagNode() :
+    it_(nh_),
+    tag_codes(AprilTags::tagCodes36h11),
     tag_detector(NULL),
-    camera_focal_length_y(700),
-    camera_focal_length_x(700),
-    tag_size(0.029), // 1 1/8in marker = 0.029m
+    camera_focal_length_y(414),
+    camera_focal_length_x(414),
+    tag_size(0.015), // 1 1/8in marker = 0.029m
     show_debug_image(false)
   {
     // Subscrive to input video feed and publish output video feed
     image_sub_ = it_.subscribe("/usb_cam/image_raw", 1, &AprilTagNode::imageCb, this);
     image_pub_ = it_.advertise("/seer_debug/output_video", 1);
-    tag_list_pub = nh_.advertise<seer::AprilTagList>("/seers", 100);
+    odom_pub_ = nh_.advertise<nav_msgs::Odometry>("/ground_truth", 1);
+    //tag_list_pub = nh_.advertise<seer::AprilTagList>("/seers", 100);
 
     // Use a private node handle so that multiple instances of the node can
     // be run simultaneously while using different parameters.
-    ros::NodeHandle private_node_handle("~"); 
+    ros::NodeHandle private_node_handle("~");
     private_node_handle.param<double>("focal_length_px", camera_focal_length_x, 700.0);
     private_node_handle.param<double>("tag_size_cm", tag_size, 2.9);
     private_node_handle.param<bool>("show_debug_image", show_debug_image, false);
@@ -101,7 +104,7 @@ public:
     }
   }
 
-  seer::AprilTag convert_to_msg(AprilTags::TagDetection& detection, int width, int height) {
+  /*seer::AprilTag convert_to_msg(AprilTags::TagDetection& detection, int width, int height) {
     // recovering the relative pose of a tag:
 
     // NOTE: for this to be accurate, it is necessary to use the
@@ -110,18 +113,18 @@ public:
 
     Eigen::Vector3d translation;
     Eigen::Matrix3d rotation;
-    detection.getRelativeTranslationRotation(tag_size, 
-                                             camera_focal_length_x, 
-                                             camera_focal_length_y, 
-                                             width / 2, 
+    detection.getRelativeTranslationRotation(tag_size,
+                                             camera_focal_length_x,
+                                             camera_focal_length_y,
+                                             width / 2,
                                              height / 2,
-                                             translation, 
+                                             translation,
                                              rotation);
 
     Eigen::Matrix3d F;
     F <<
       1, 0,  0,
-      0,  -1,  0,
+      0,  1,  0,
       0,  0,  1;
     Eigen::Matrix3d fixed_rot = F*rotation;
     double yaw, pitch, roll;
@@ -132,33 +135,54 @@ public:
 
     tag_msg.id = detection.id;
     tag_msg.hamming_distance = detection.hammingDistance;
-    tag_msg.distance = translation.norm() * 100.0;
-    tag_msg.z = translation(0) * 100.0; // depth from camera
-    tag_msg.x = translation(1) * 100.0; // horizontal displacement (camera pov right = +ve)
-    tag_msg.y = translation(2) * 100.0; // vertical displacement
+    tag_msg.distance = translation.norm();
+    tag_msg.z = translation(0); // depth from camera
+    tag_msg.x = translation(1); // horizontal displacement (camera pov right = +ve)
+    tag_msg.y = translation(2); // vertical displacement
     tag_msg.yaw = yaw;
     tag_msg.pitch = pitch;
     tag_msg.roll = roll;
     return tag_msg;
-  }
+  }*/
 
 
-  void processCvImage(cv_bridge::CvImagePtr cv_ptr) 
+  void processCvImage(cv_bridge::CvImagePtr cv_ptr)
   {
     cv::Mat image_gray;
     cv::cvtColor(cv_ptr->image, image_gray, CV_BGR2GRAY);
     vector<AprilTags::TagDetection> detections = tag_detector->extractTags(image_gray);
     vector<seer::AprilTag> tag_msgs;
 
-    for (int i=0; i<detections.size(); i++) {
-      detections[i].draw(cv_ptr->image);
-      tag_msgs.push_back(convert_to_msg(detections[i], cv_ptr->image.cols, cv_ptr->image.rows));
-    }
+    if(detections.size()>0){
+      Eigen::Vector3d translation;
+      Eigen::Matrix3d rotation;
+      detections[0].getRelativeTranslationRotation(tag_size,
+                                               camera_focal_length_x,
+                                               camera_focal_length_y,
+                                               cv_ptr->image.cols / 2,
+                                               cv_ptr->image.rows / 2,
+                                               translation,
+                                               rotation);
 
-    if(detections.size() > 0) { // take this out if you want absence notificaiton
-      seer::AprilTagList tag_list;
-      tag_list.april_tags = tag_msgs;
-      tag_list_pub.publish(tag_list);
+      if (show_debug_image) {
+       // Update GUI Window
+       detections[0].draw(cv_ptr->image);
+       cv::imshow(OPENCV_WINDOW, cv_ptr->image);
+       cv::waitKey(3);
+      }
+
+
+      double yaw, pitch, roll;
+      //wRo_to_euler(rotation, yaw, pitch, roll);
+
+      nav_msgs::Odometry odom;
+      odom.header.stamp = ros::Time::now();
+      odom.header.frame_id = "cam";
+      odom.pose.pose.position.x = translation(1);
+      odom.pose.pose.position.y = -translation(2);
+      odom.pose.pose.position.z = 2.89698162598 - translation(0);
+
+      odom_pub_.publish(odom);
     }
   }
 
@@ -178,14 +202,8 @@ public:
 
     processCvImage(cv_ptr);
 
-    if (show_debug_image) {
-      // Update GUI Window
-      cv::imshow(OPENCV_WINDOW, cv_ptr->image);
-      cv::waitKey(3);
-    }
-
     // Output modified video stream
-    image_pub_.publish(cv_ptr->toImageMsg());
+    //image_pub_.publish(cv_ptr->toImageMsg());
   }
 };
 
